@@ -1,0 +1,35 @@
+---
+config:
+  theme: dark
+---
+
+sequenceDiagram
+participant User as Navegador
+participant OS as SO (stub resolver)
+participant Resolver as Resolver (ISP ou público)
+participant Root as Root Server (.)
+participant TLD as TLD Server (.com)
+participant Auth as DNS Autoritativo (NS do domínio)
+participant DNSP as DNS Provider (ex: Cloudflare DNS)
+participant Reg as Registrar (ex: GoDaddy)
+participant WAF as CDN/WAF (ex: Cloudflare)
+User ->> OS: Acessar phoenixTS.com
+OS ->> Resolver: Consulta DNS phoenixTS.com
+alt Cache HIT
+Resolver ->> OS: Retorna IP (cache)
+OS ->> User: Resposta IP
+else Cache MISS
+Resolver ->> Root: Qual servidor .com?
+Root ->> Resolver: Delegação para TLD .com
+Resolver ->> TLD: Qual NS de phoenixTS.com?
+TLD ->> Resolver: NS = ns55.domaincontrol.com
+Resolver ->> Auth: Qual o IP de phoenixTS.com?
+Auth ->> Resolver: IP final (com RRSIG se DNSSEC ativo)
+Resolver ->> OS: IP + (verificação DNSSEC se compatível)
+OS ->> User: Entrega IP
+Note over Auth, DNSP: Auth = zona hospedada no DNS provider
+end
+Note right of Reg: Regis```mermaidtrar = controla registro do domínio<br>pode ou não ser o mesmo do DNS provider
+User ->> WAF: Acessa IP retornado (ex: IP da Cloudflare)
+WAF ->> User: Retorna página (se IP mascarado)
+Note over Resolver: Resolver valida DNSSEC se suportado<br>(ex: 8.8.8.8, 1.1.1.1)
