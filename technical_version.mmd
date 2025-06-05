@@ -1,7 +1,8 @@
 sequenceDiagram
   participant User as User
   participant Stub as OS Stub Resolver
-  participant Rec as Recursive Resolver
+  participant ISP as ISP Resolver
+  participant Rec as Public Resolver
   participant Root as Root Server
   participant TLD as TLD Server
   participant Auth as Authoritative DNS Server
@@ -9,10 +10,11 @@ sequenceDiagram
   participant Host as Host Server
   actor MA as Malicious Actor
 
-%%  Note over User: Through browser,<br>email client,<br>FTP, IoT & others
-%%  Note over Stub: Software component<br>integrated into OS
-%%  Note over Rec: Data centers owned by<br>ISPs, public DNS providers<br>(Google (8.8.8.8),<br>Cloudflare (1.1.1.1),<br>and OpenDNS
-%%  Note over Root: Managed by ICANN with 13<br>authoritative root server IPs,<br>operated by various organizations<br>(e.g., VeriSign, Netnod)
+  Note over User: Through browser,<br>email client,<br>FTP, IoT & others
+  Note over Stub: Software component<br>integrated into OS
+  Note over ISP: ISPs can store<br>their own cache
+  Note over Rec: Public DNS providers<br>like (Google (8.8.8.8),<br>Cloudflare (1.1.1.1),<br>and OpenDNS
+  Note over Root: Managed by ICANN with 13<br>authoritative root server IPs,<br>operated by various organizations<br>(e.g., VeriSign, Netnod)
 
   User->>User: Check Browser Cache
   alt BROWSER CACHED
@@ -23,29 +25,43 @@ sequenceDiagram
     alt OS STUB CACHED
       Stub->>User: Provide OS Stub Cached IP
     else OS STUB NOT CACHED
-      Stub->>Rec: Forward Query if Cache Miss
-      Note over Rec: Most extensive caching point
-      Rec->>Rec: Check Recursive Resolver Cache
-      alt RECURSIVE RESOLVER CACHED
-        Rec->>Stub: Provide Rec Cached IP
-        Stub->>User: Provide Rec Cached IP
-      else RECURSIVE RESOLVER NOT CACHED
-        Rec->>Root: Query Root Server
-        Root->>Rec: Respond with TLD Reference
-        Rec->>TLD: Query TLD Server
-        TLD->>Rec: Respond with Auth DNS Reference
-        Rec->>Auth: Query Authoritative DNS
-        Note right of Auth: Validate DNSSEC RRSIG
-        Auth->>Rec: Respond with DNS Record
-        Rec->>Stub: Forward Response
-        Stub->>User: Provide Answer to Query
-        alt CDN ENABLED
-          User->>CDN: Request Resource
-          CDN->>User: Provide Content
-        else CDN NOT ENABLED
-          User->>Host: Request Resource
-          Host->>User: Provide Content
+      Stub->>ISP: Forward Query if Cache Miss
+      ISP->>ISP: Check ISP Cache
+      alt ISP CACHED
+        ISP->>Stub: Provide ISP Cached IP
+        Stub->>User: Provide ISP Cached IP
+      else ISP NOT CACHED
+        ISP->>Rec: Forward Query if Cache Miss
+        Rec->>Rec: Check Recursive Resolver Cache
+        Note over Rec,Rec: Most extensive caching point
+        
+        alt PUBLIC RESOLVER CACHED
+          Rec->>ISP: Provide Rec Cached IP
+          ISP->>Stub: Provide Rec Cached IP
+          Stub->>User: Provide Rec Cached IP
+        else PUBLIC RESOLVER NOT CACHED
+          Rec->>Root: Query Root Server
+          Root->>Rec: Respond with TLD Reference
+          Rec->>TLD: Query TLD Server
+          TLD->>Rec: Respond with Auth DNS Reference
+          Rec->>Auth: Query Authoritative DNS
+          alt AUTHORITATIVE SERVER WITH NEGATIVE CACHE
+            Auth->>Rec: Inform non-existing domain
+          else AUTHORITATIVE SERVER WITHOUT NEGATIVE CACHE
+            Note right of Auth: Validate DNSSEC RRSIG
+            Auth->>Rec: Respond with DNS Record
+            Rec->>Stub: Forward Response
+            Stub->>User: Provide Answer to Query
+            alt CDN ENABLED
+              User->>CDN: Request Resource
+              CDN->>User: Provide Content
+            else CDN NOT ENABLED
+              User->>Host: Request Resource
+              Host->>User: Provide Content
+            end
+          end
         end
+      end
     end
   end
-end
+
