@@ -1,16 +1,34 @@
 sequenceDiagram
-  participant User as User Device
+  participant User as User
   participant Stub as OS Stub Resolver
   participant Rec as Recursive Resolver
   participant Root as Root Server
   participant TLD as TLD Server
   participant Auth as Authoritative DNS Server
   participant CDN as CDN/WAF
+  actor MA as Malicious Actor
 
+  Note over User: Through browser,<br>email client,<br>FTP, IoT & others
+  Note over Stub: Software component<br>integrated into OS
+  Note over Rec: Data centers owned by<br>ISPs, public DNS providers<br>(Google (8.8.8.8),<br>Cloudflare (1.1.1.1),<br>and OpenDNS
+  Note over Root: Managed by ICANN with 13<br>authoritative root server IPs,<br>operated by various organizations<br>(e.g., VeriSign, Netnod)
+
+  User->>Stub: Check Browser Cache
+
+  alt BROWSER CACHED
+    Note right of User: Browser cache contains<br>DNS records for previously resolved domains
+    Stub-->>User: Provide Cached Answer
+  else BROWSER NOT CACHED
+    User->>Stub: Request DNS Resolution
   User->>Stub: Send DNS Query
   Stub-->>Stub: Check Local Cache
-  Stub->>Rec: Forward Query if Cache Miss
   Rec-->>Rec: Check Cache
+  alt CACHED
+    Stub-->>User: Provide Cached Answer
+  else NO CACHED
+    Stub->>Rec: Forward Query if Cache Miss
+  end
+  
   Rec->>Root: Query Root Server
   Root-->>Rec: Respond with TLD Reference
   Rec->>TLD: Query TLD Server
@@ -22,5 +40,4 @@ sequenceDiagram
   Stub-->>User: Provide Answer to Query
   User->>CDN: Request Resource
   CDN-->>User: Provide Content
-
-  Note left of Root: Test
+end
